@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ## [Unreleased]
 ###
 
+- Support for markdown `.md` files and `{eval-rst}` myst-parser directives, from 
+  [Tony Narlock](https://www.git-pull.com) (re: #30, via #31).
+
 ## [0.4.0] - 2022-03-30
 ###
  - Drop python2.7 (Fixes #14)
