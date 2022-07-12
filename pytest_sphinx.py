@@ -54,7 +54,7 @@ def pytest_collect_file(path, parent):
 
 
 def _is_doctest(config, path, parent):
-    if path.ext in (".txt", ".rst") and parent.session.isinitpath(path):
+    if path.ext in (".txt", ".rst", ".md") and parent.session.isinitpath(path):
         return True
     globs = config.getoption("doctestglob") or ["test*.txt"]
     for glob in globs:
