@@ -28,6 +28,7 @@ setup(
     long_description=read("README.rst"),
     py_modules=["pytest_sphinx"],
     install_requires=["pytest>=7.0.0"],
+    extras_require={"myst-parser":["myst-parser"]},
     classifiers=[
         "Development Status :: 4 - Beta",
         "Framework :: Pytest",
