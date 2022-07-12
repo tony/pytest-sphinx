@@ -87,9 +87,10 @@ def test_indented():
     assert example.lineno == 7
 
 
-def test_cartopy():
+@pytest.mark.parametrize("file_type", ["rst", "md"])
+def test_cartopy(file_type: str):
     rstpath = os.path.join(
-        os.path.dirname(__file__), "testdata", "using_the_shapereader.rst"
+        os.path.dirname(__file__), "testdata", f"using_the_shapereader.{file_type}"
     )
     with open(rstpath, "r") as fh:
         sections = get_sections(fh.read())
