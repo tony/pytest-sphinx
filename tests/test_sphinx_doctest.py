@@ -31,12 +31,20 @@ class SphinxDoctestRunner:
             ]
         )
 
-    def __call__(self, rst_file_content, must_raise=False, sphinxopts=None):
-        index_rst = self.tmpdir.join("source").join("index.rst")
-        rst_file_content = textwrap.dedent(rst_file_content)
-        index_rst.write(rst_file_content)
+    def __call__(
+        self,
+        file_content,
+        must_raise=False,
+        file_type: str = "rst",
+        sphinxopts=None,
+    ):
+        if file_type == "md":  # Delete sphinx-quickstart's .rst file
+            self.tmpdir.join("source").join("index.rst").remove()
+        index_file = self.tmpdir.join("source").join(f"index.{file_type}")
+        file_content = textwrap.dedent(file_content)
+        index_file.write(file_content)
         logger.info("CWD: %s", os.getcwd())
-        logger.info("content of index.rst:\n%s", rst_file_content)
+        logger.info(f"content of index.{file_type}:\n%s", file_content)
 
         cmd = ["sphinx-build", "-M", "doctest", "source", ""]
         if sphinxopts is not None:
@@ -58,7 +66,7 @@ class SphinxDoctestRunner:
 
 
 @pytest.fixture
-def sphinx_tester(tmpdir):
+def sphinx_tester(tmpdir, request):
     with tmpdir.as_cwd():
         yield SphinxDoctestRunner(tmpdir)
 
@@ -126,7 +134,6 @@ class TestDirectives:
                >>> print("msg from testcode directive")
                msg from testcode directive
             """
-
         sphinx_output = sphinx_tester(code)
         assert "1 items passed all tests" in sphinx_output
 
