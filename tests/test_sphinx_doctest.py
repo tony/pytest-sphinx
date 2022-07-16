@@ -167,6 +167,53 @@ class TestDirectives:
         plugin_result = testdir.runpytest(f"--doctest-glob=index.{file_type}").stdout
         plugin_result.fnmatch_lines(["*=== 1 passed in *"])
 
+    @pytest.mark.parametrize(
+        "file_type,code",
+        [
+            [
+                "rst",
+                """
+            .. doctest::
+
+               >>> print("msg from testcode directive")
+               msg from testcode directive
+            """,
+            ],
+            [
+                "md",
+                """
+    ```{eval-rst}
+    .. doctest::
+
+        >>> print("msg from testcode directive")
+        msg from testcode directive
+    ```
+    """,
+            ],
+        ],
+    )
+    def test_doctest_myst_api(self, testdir, sphinx_tester, file_type: str, code: str):
+        import myst_parser.parsers.docutils_
+        import myst_parser.parsers.sphinx_
+        from docutils.utils import nodes
+        from myst_parser.mdit_to_docutils.base import make_document
+
+        DocutilsParser = myst_parser.parsers.docutils_.Parser
+        parser = DocutilsParser()
+        doc = make_document(parser_cls=DocutilsParser)
+        parser.parse(inputstring=code, document=doc)
+
+        for node in doc.findall(nodes.literal_block):
+            print(str(node))
+            print(
+                str(node)
+                .replace("```{eval-rst}", "")
+                .replace("```", "")
+                .replace("\n", "")
+            )
+
+        assert True
+
     def test_doctest_multiple(self, testdir, sphinx_tester):
         code = """
             .. doctest::
