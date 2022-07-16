@@ -127,17 +127,44 @@ class TestDirectives:
         plugin_result = testdir.runpytest("--doctest-glob=index.rst").stdout
         plugin_result.fnmatch_lines(["*=== 1 passed in *"])
 
-    def test_doctest(self, testdir, sphinx_tester):
-        code = """
+    @pytest.mark.parametrize(
+        "file_type,code",
+        [
+            [
+                "rst",
+                """
             .. doctest::
 
                >>> print("msg from testcode directive")
                msg from testcode directive
-            """
-        sphinx_output = sphinx_tester(code)
+            """,
+            ],
+            [
+                "md",
+                """
+    ```{eval-rst}
+    .. doctest::
+
+        >>> print("msg from testcode directive")
+        msg from testcode directive
+    ```
+    """,
+            ],
+        ],
+    )
+    def test_doctest(self, testdir, sphinx_tester, file_type: str, code: str):
+        if file_type == "md":  # Skip if no myst-parser
+            pytest.importorskip("myst_parser")
+        sphinx_output = sphinx_tester(
+            code,
+            file_type=file_type,
+            sphinxopts=None
+            if file_type == "rst"
+            else ["-D", "extensions=myst_parser,sphinx.ext.doctest"],
+        )
         assert "1 items passed all tests" in sphinx_output
 
-        plugin_result = testdir.runpytest("--doctest-glob=index.rst").stdout
+        plugin_result = testdir.runpytest(f"--doctest-glob=index.{file_type}").stdout
         plugin_result.fnmatch_lines(["*=== 1 passed in *"])
 
     def test_doctest_multiple(self, testdir, sphinx_tester):
