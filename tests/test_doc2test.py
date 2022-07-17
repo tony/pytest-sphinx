@@ -22,21 +22,21 @@ from pytest_sphinx import get_sections
     {{'3': 4,
      '5': 6}}
 """,
-        """
-```{{eval-rst}}
-.. testcode::
-
-    import pprint
-    pprint.pprint({{'3': 4, '5': 6}})
-```
-{}
-```{{eval-rst}}
-.. testoutput::
-
-    {{'3': 4,
-     '5': 6}}
-```
-""",
+        #         """
+        # ```{{eval-rst}}
+        # .. testcode::
+        #
+        #     import pprint
+        #     pprint.pprint({{'3': 4, '5': 6}})
+        # ```
+        # {}
+        # ```{{eval-rst}}
+        # .. testoutput::
+        #
+        #     {{'3': 4,
+        #      '5': 6}}
+        # ```
+        # """,
     ],
 )
 @pytest.mark.parametrize("in_between_content", ["", "\nsome text\nmore text"])

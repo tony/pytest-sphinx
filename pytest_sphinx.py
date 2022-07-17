@@ -6,9 +6,9 @@ https://github.com/sphinx-doc/sphinx/blob/master/sphinx/ext/doctest.py
 * TODO
 ** CLEANUP: use the sphinx directive parser from the sphinx project
 """
-
 import doctest
 import enum
+import pprint
 import re
 import sys
 import textwrap
@@ -201,33 +201,70 @@ def get_sections(docstring):
             )
         )
 
-    i = 0
-    while True:
-        try:
-            line = lines[i]
-        except IndexError:
-            break
+    import myst_parser.parsers.docutils_
+    import myst_parser.parsers.sphinx_
+    from docutils.parsers.rst import Directive
+    from docutils.parsers.rst.directives.body import CodeBlock
+    from docutils.parsers.rst.directives.body import ParsedLiteral
+    from docutils.utils import nodes
+    from myst_parser.mdit_to_docutils.base import make_document
+    from myst_parser.parsers import directives
 
-        match = _DIRECTIVE_RE.match(line)
+    DocutilsParser = myst_parser.parsers.docutils_.Parser
+    parser = DocutilsParser()
+    doc = make_document(parser_cls=DocutilsParser)
+    parser.parse(inputstring=docstring, document=doc)
+    for node in doc.findall(nodes.literal_block):
+        print(str(node))
+        cleaned_node = (
+            str(node).replace("```{eval-rst}", "").replace("```", "").replace("\n", "")
+        )
+        pprint.pprint(f"cleaned_node: {cleaned_node}")
+        pprint.pprint(f"node.parent: {node.parent}")
+        pprint.pprint(f"node.parent.parent: {node.parent.parent}")
+        match = _DIRECTIVE_RE.match(str(cleaned_node))
+        pprint.pprint(f"match: {match}")
         if match:
             group = match.groupdict()
+
+            # print(
+            #     str(node)
+            #     .replace("```{eval-rst}", "")
+            #     .replace("```", "")
+            #     .replace("\n", "")
+            # )
             directive = getattr(SphinxDoctestDirectives, group["directive"].upper())
+            print(f"directive: {directive}")
             groups = [x.strip() for x in (group["argument"] or "default").split(",")]
-            indentation = _get_indentation(line)
-            # find the end of the block
-            j = i
-            while True:
-                j += 1
-                try:
-                    block_line = lines[j]
-                except IndexError:
-                    add_match(directive, i, j, groups)
-                    break
-                if block_line.lstrip() and _get_indentation(block_line) <= indentation:
-                    add_match(directive, i, j, groups)
-                    i = j - 1
-                    break
-        i += 1
+            add_match(directive.upper(), 1, 1, groups)
+
+    # i = 0
+    # while True:
+    #     try:
+    #         line = lines[i]
+    #     except IndexError:
+    #         break
+    #
+    #     match = _DIRECTIVE_RE.match(line)
+    #     if match:
+    #         group = match.groupdict()
+    #         directive = getattr(SphinxDoctestDirectives, group["directive"].upper())
+    #         groups = [x.strip() for x in (group["argument"] or "default").split(",")]
+    #         indentation = _get_indentation(line)
+    #         # find the end of the block
+    #         j = i
+    #         while True:
+    #             j += 1
+    #             try:
+    #                 block_line = lines[j]
+    #             except IndexError:
+    #                 add_match(directive, i, j, groups)
+    #                 break
+    #             if block_line.lstrip() and _get_indentation(block_line) <= indentation:
+    #                 add_match(directive, i, j, groups)
+    #                 i = j - 1
+    #                 break
+    #     i += 1
     return sections
 
 
@@ -259,8 +296,10 @@ def docstring2examples(docstring, globs=None):
         return want, options, section.lineno, exc_msg
 
     examples = []
+    print(f"sections: {sections}")
     for i, current_section in enumerate(sections):
         # TODO support SphinxDoctestDirectives.TESTSETUP, ...
+        print(f"i: {i}, current_section: {current_section}")
         if current_section.directive == SphinxDoctestDirectives.TESTCODE:
             next_testoutput_sections = _get_next_textoutputsections(sections, i + 1)
             section_data_seq = [
