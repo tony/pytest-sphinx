@@ -8,6 +8,7 @@ https://github.com/sphinx-doc/sphinx/blob/master/sphinx/ext/doctest.py
 """
 import doctest
 import enum
+import logging
 import pprint
 import re
 import sys
@@ -16,15 +17,25 @@ import traceback
 from pathlib import Path
 
 import _pytest.doctest
+import myst_parser.parsers.docutils_
+import myst_parser.parsers.sphinx_
 import pytest
 from _pytest.doctest import DoctestItem
 from _pytest.doctest import _is_mocked
 from _pytest.doctest import _patch_unwrap_mock_aware
 from _pytest.pathlib import import_path
+from docutils.frontend import OptionParser
+from docutils.nodes import Node
+from docutils.utils import nodes
 from myst_parser.config.main import MdParserConfig
-from myst_parser.mdit_to_docutils.base import DocutilsRenderer
+from myst_parser.mdit_to_docutils.base import make_document
 from myst_parser.mdit_to_docutils.sphinx_ import SphinxRenderer
-from myst_parser.parsers.sphinx_ import MystParser
+from myst_parser.parsers.mdit import create_md_parser
+
+from docutils_doctest import TestCode
+from docutils_doctest import setup as setup_docutils_doctest
+
+logger = logging.getLogger(__name__)
 
 
 class SphinxDoctestDirectives(enum.Enum):
@@ -172,12 +183,16 @@ def _get_next_textoutputsections(sections, index):
 
 
 class Section(object):
-    def __init__(self, directive, content, lineno, groups=None):
+    def __init__(self, directive, node: Node, lineno, groups=None):
         super(Section, self).__init__()
         self.directive = directive
         self.groups = groups
         self.lineno = lineno
-        body, skipif_expr, options = _split_into_body_and_options(content)
+        body, skipif_expr, options = (
+            node.astext(),
+            node["options"].get("skipif"),
+            node["options"],
+        )
 
         if skipif_expr and self.directive not in _DIRECTIVES_W_SKIPIF:
             raise ValueError(":skipif: not allowed in {}".format(self.directive))
@@ -188,74 +203,115 @@ class Section(object):
         self.options = options
 
 
-def get_sections(docstring):
+def get_sections(docstring, is_markdown: bool = False):
     lines = textwrap.dedent(docstring).splitlines()
     sections = []
 
     def _get_indentation(line):
         return len(line) - len(line.lstrip())
 
-    def add_match(directive, i, j, groups):
+    def add_match(directive, node: Node, i, j, groups):
         sections.append(
             Section(
                 directive,
-                textwrap.dedent("\n".join(lines[i + 1 : j])),
+                node=node,
+                # textwrap.dedent("\n".join(lines[i + 1 : j])),
                 lineno=j - 1,
                 groups=groups,
             )
         )
 
-    import myst_parser.parsers.docutils_
-    import myst_parser.parsers.sphinx_
-    from docutils.parsers.rst import Directive
-    from docutils.parsers.rst.directives.body import CodeBlock
-    from docutils.parsers.rst.directives.body import ParsedLiteral
-    from docutils.utils import nodes
-    from myst_parser.mdit_to_docutils.base import make_document
-    from myst_parser.parsers import directives
-    from myst_parser.parsers.mdit import create_md_parser
+    setup_docutils_doctest()
 
-    # DocutilsParser = myst_parser.parsers.docutils_.Parser
-    # parser = DocutilsParser()
-    # doc = make_document(parser_cls=DocutilsParser)
+    if is_markdown:
+        Parser = myst_parser.parsers.sphinx_.MystParser
 
-    SphinxParser = myst_parser.parsers.sphinx_.MystParser
-    # parser = SphinxParser()
-    # parser.env.myst_config = MdParserConfig(commonmark_only=False)
-    # doc = make_document(parser_cls=SphinxParser)
-    # parser.parse(inputstring=docstring, document=doc)
-    #
-    #
+        config: MdParserConfig = MdParserConfig(commonmark_only=False)
 
-    doc = make_document(parser_cls=MystParser)
-    config: MdParserConfig = MdParserConfig(commonmark_only=False)
-    parser = create_md_parser(config, SphinxRenderer)
-    parser.options["document"] = doc
-    parser.render(docstring)
+        parser = create_md_parser(config, SphinxRenderer)
 
-    for node in doc.findall(nodes.literal_block):
-        print(str(node))
-        cleaned_node = (
-            str(node).replace("```{eval-rst}", "").replace("```", "").replace("\n", "")
+        # DocutilsParser = myst_parser.parsers.docutils_.Parser
+        # doc = make_document(parser_cls=DocutilsParser)
+        # parser = DocutilsParser()
+
+        doc = make_document(parser_cls=Parser)
+        parser.options["document"] = doc
+        parser.render(docstring)
+    else:
+        import docutils.utils
+        from docutils.parsers.rst import Parser
+
+        parser_cls = Parser
+
+        parser = Parser()
+        settings = OptionParser(components=(parser_cls,)).get_default_values()
+
+        doc = docutils.utils.new_document(docstring, settings)
+        parser.parse(docstring, doc)
+
+    DIRECTIVE_NAMES = ["testsetup", "testcleanup", "doctest", "testcode", "testoutput"]
+
+    def condition(node: Node) -> bool:
+        return (
+            isinstance(node, (nodes.literal_block, nodes.comment))
+            and "testnodetype" in node
         )
-        pprint.pprint(f"cleaned_node: {cleaned_node}")
-        pprint.pprint(f"node.parent: {node.parent}")
-        pprint.pprint(f"node.parent.parent: {node.parent.parent}")
-        match = _DIRECTIVE_RE.match(str(cleaned_node))
-        pprint.pprint(f"match: {match}")
-        if match:
-            group = match.groupdict()
+        return any(needle in node for needle in DIRECTIVE_NAMES)
+        return isinstance(node, (nodes.literal_block, nodes.comment)) and any(
+            needle in node for needle in DIRECTIVE_NAMES
+        )
 
-            # print(
-            #     str(node)
-            #     .replace("```{eval-rst}", "")
-            #     .replace("```", "")
-            #     .replace("\n", "")
-            # )
-            directive = getattr(SphinxDoctestDirectives, group["directive"].upper())
-            print(f"directive: {directive}")
-            groups = [x.strip() for x in (group["argument"] or "default").split(",")]
-            add_match(directive.upper(), 1, 1, groups)
+    groups: Dict[str, TestGroup] = {}
+    add_to_all_groups = []
+
+    # for node in doc.findall(nodes.literal_block):
+    for node in doc.findall(condition):
+        print(str(node))
+        # print(str(node.__dict__))
+        # print(str(node.__dir__()))
+        # cleaned_node = (
+        #     str(node).replace("```{eval-rst}", "").replace("```", "").replace("\n", "")
+        # )
+        # pprint.pprint(f"cleaned_node: {cleaned_node}")
+        # pprint.pprint(f"node.parent: {node.parent}")
+        # pprint.pprint(f"node.parent.parent: {node.parent.parent}")
+        # pprint.pprint(f"node.text: {node.astext()}")
+        # print(
+        #     str(node)
+        #     .replace("```{eval-rst}", "")
+        #     .replace("```", "")
+        #     .replace("\n", "")
+        # )
+        directive = getattr(SphinxDoctestDirectives, node["testnodetype"].upper())
+        add_match(directive, node, 1, 1, node["groups"])
+        source = node["test"] if "test" in node else node.astext()
+        filename = self.get_filename_for_node(node, docname)
+        line_number = self.get_line_number(node)
+        if not source:
+            logger.warning(
+                __("no code/output in %s block at %s:%s"),
+                node.get("testnodetype", "doctest"),
+                filename,
+                line_number,
+            )
+        code = TestCode(
+            source,
+            type=node.get("testnodetype", "doctest"),
+            filename=filename,
+            lineno=line_number,
+            options=node.get("options"),
+        )
+        node_groups = node.get("groups", ["default"])
+        if "*" in node_groups:
+            add_to_all_groups.append(code)
+            continue
+        for groupname in node_groups:
+            if groupname not in groups:
+                groups[groupname] = TestGroup(groupname)
+            groups[groupname].add_code(code)
+        for code in add_to_all_groups:
+            for group in groups.values():
+                group.add_code(code)
 
     # i = 0
     # while True:

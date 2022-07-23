@@ -12,6 +12,43 @@ from pytest_sphinx import get_sections
     "doc",
     [
         """
+        .. doctest:: mygroup
+
+           >>> print("test")
+           test
+
+
+        .. testcode::
+
+            import pprint
+            pprint.pprint({{'3': 4, '5': 6}})
+        {}
+        .. testoutput::
+
+            {{'3': 4,
+             '5': 6}}
+        """,
+    ],
+)
+@pytest.mark.parametrize("in_between_content", ["", "\nsome text\nmore text"])
+def test_get_sections(doc: str, in_between_content: str):
+    doc = doc.format(in_between_content)
+
+    results = get_sections(doc)
+
+    assert len(results)
+
+
+@pytest.mark.parametrize(
+    "doc",
+    [
+        """
+        .. doctest:: mygroup
+
+           >>> print("test")
+           test
+
+
         .. testcode::
 
             import pprint
