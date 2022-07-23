@@ -193,6 +193,40 @@ class TestCode:
         )
 
 
+class TestGroup:
+    def __init__(self, name: str) -> None:
+        self.name = name
+        self.setup: List[TestCode] = []
+        self.tests: List[List[TestCode]] = []
+        self.cleanup: List[TestCode] = []
+
+    def add_code(self, code: "TestCode", prepend: bool = False) -> None:
+        if code.type == "testsetup":
+            if prepend:
+                self.setup.insert(0, code)
+            else:
+                self.setup.append(code)
+        elif code.type == "testcleanup":
+            self.cleanup.append(code)
+        elif code.type == "doctest":
+            self.tests.append([code])
+        elif code.type == "testcode":
+            self.tests.append([code, None])
+        elif code.type == "testoutput":
+            if self.tests and len(self.tests[-1]) == 2:
+                self.tests[-1][1] = code
+        else:
+            raise RuntimeError(__("invalid TestCode type"))
+
+    def __repr__(self) -> str:
+        return "TestGroup(name=%r, setup=%r, cleanup=%r, tests=%r)" % (
+            self.name,
+            self.setup,
+            self.cleanup,
+            self.tests,
+        )
+
+
 parser = doctest.DocTestParser()
 
 

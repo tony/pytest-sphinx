@@ -48,7 +48,6 @@ def test_get_sections(doc: str, in_between_content: str):
            >>> print("test")
            test
 
-
         .. testcode::
 
             import pprint
@@ -87,7 +86,7 @@ def test_simple(doc: str, in_between_content: str):
     assert example.want == "{'3': 4,\n '5': 6}\n"
     assert example.exc_msg is None
     assert example.options == {}
-    assert example.lineno == 5
+    assert example.lineno == 6
 
 
 @pytest.mark.parametrize(
@@ -135,7 +134,7 @@ def test_with_options(doc: str):
         doctest.NORMALIZE_WHITESPACE: True,
         doctest.ELLIPSIS: True,
     }
-    assert example.lineno == 5
+    assert example.lineno == 1
 
 
 @pytest.mark.parametrize(

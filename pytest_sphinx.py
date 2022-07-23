@@ -9,12 +9,14 @@ https://github.com/sphinx-doc/sphinx/blob/master/sphinx/ext/doctest.py
 import doctest
 import enum
 import logging
+import os.path
 import pprint
 import re
 import sys
 import textwrap
 import traceback
 from pathlib import Path
+from typing import Optional
 
 import _pytest.doctest
 import myst_parser.parsers.docutils_
@@ -33,6 +35,7 @@ from myst_parser.mdit_to_docutils.sphinx_ import SphinxRenderer
 from myst_parser.parsers.mdit import create_md_parser
 
 from docutils_doctest import TestCode
+from docutils_doctest import TestGroup
 from docutils_doctest import setup as setup_docutils_doctest
 
 logger = logging.getLogger(__name__)
@@ -187,7 +190,8 @@ class Section(object):
         super(Section, self).__init__()
         self.directive = directive
         self.groups = groups
-        self.lineno = lineno
+        self.lineno = get_line_number(node)
+        self.node = node
         body, skipif_expr, options = (
             node.astext(),
             node["options"].get("skipif"),
@@ -201,6 +205,38 @@ class Section(object):
         self.body = body
         self.skipif_expr = skipif_expr
         self.options = options
+
+
+def get_filename_for_node(node: Node, docname: str) -> str:
+    """Try to get the file which actually contains the doctest, not the
+    filename of the document it's included in."""
+    try:
+        filename = os.path.relpath(node.source, "fillthis/").rsplit(
+            ":docstring of ", maxsplit=1
+        )[0]
+        # filename = os.path.relpath(node.source, self.env.srcdir).rsplit(
+        #     ":docstring of ", maxsplit=1
+        # )[0]
+    except Exception:
+        filename = "Fillthis.py"
+        # filename = self.env.doc2path(docname, False)
+    return filename
+
+
+def get_line_number(node: Node) -> Optional[int]:
+    """Get the real line number or admit we don't know."""
+    # TODO:  Work out how to store or calculate real (file-relative)
+    #       line numbers for doctest blocks in docstrings.
+    if ":docstring of " in os.path.basename(node.source or ""):
+        # The line number is given relative to the stripped docstring,
+        # not the file.  This is correct where it is set, in
+        # `docutils.nodes.Node.setup_child`, but Sphinx should report
+        # relative to the file, not the docstring.
+        return None
+    if node.line is not None:
+        # TODO: find the root cause of this off by one error.
+        return node.line - 1
+    return None
 
 
 def get_sections(docstring, is_markdown: bool = False):
@@ -285,8 +321,8 @@ def get_sections(docstring, is_markdown: bool = False):
         directive = getattr(SphinxDoctestDirectives, node["testnodetype"].upper())
         add_match(directive, node, 1, 1, node["groups"])
         source = node["test"] if "test" in node else node.astext()
-        filename = self.get_filename_for_node(node, docname)
-        line_number = self.get_line_number(node)
+        filename = get_filename_for_node(node, docname="addthislater")
+        line_number = get_line_number(node)
         if not source:
             logger.warning(
                 __("no code/output in %s block at %s:%s"),
@@ -377,6 +413,8 @@ def docstring2examples(docstring, globs=None):
         print(f"i: {i}, current_section: {current_section}")
         if current_section.directive == SphinxDoctestDirectives.TESTCODE:
             next_testoutput_sections = _get_next_textoutputsections(sections, i + 1)
+            print(f"current_section: {current_section.node}")
+            print(f"current_section: {current_section.lineno}")
             section_data_seq = [
                 get_testoutput_section_data(s) for s in next_testoutput_sections
             ]
