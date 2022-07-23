@@ -12,16 +12,16 @@ from pytest_sphinx import get_sections
     "doc",
     [
         """
-.. testcode::
+        .. testcode::
 
-    import pprint
-    pprint.pprint({{'3': 4, '5': 6}})
-{}
-.. testoutput::
+            import pprint
+            pprint.pprint({{'3': 4, '5': 6}})
+        {}
+        .. testoutput::
 
-    {{'3': 4,
-     '5': 6}}
-""",
+            {{'3': 4,
+             '5': 6}}
+        """,
         #         """
         # ```{{eval-rst}}
         # .. testcode::

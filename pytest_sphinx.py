@@ -21,6 +21,10 @@ from _pytest.doctest import DoctestItem
 from _pytest.doctest import _is_mocked
 from _pytest.doctest import _patch_unwrap_mock_aware
 from _pytest.pathlib import import_path
+from myst_parser.config.main import MdParserConfig
+from myst_parser.mdit_to_docutils.base import DocutilsRenderer
+from myst_parser.mdit_to_docutils.sphinx_ import SphinxRenderer
+from myst_parser.parsers.sphinx_ import MystParser
 
 
 class SphinxDoctestDirectives(enum.Enum):
@@ -209,11 +213,26 @@ def get_sections(docstring):
     from docutils.utils import nodes
     from myst_parser.mdit_to_docutils.base import make_document
     from myst_parser.parsers import directives
+    from myst_parser.parsers.mdit import create_md_parser
 
-    DocutilsParser = myst_parser.parsers.docutils_.Parser
-    parser = DocutilsParser()
-    doc = make_document(parser_cls=DocutilsParser)
-    parser.parse(inputstring=docstring, document=doc)
+    # DocutilsParser = myst_parser.parsers.docutils_.Parser
+    # parser = DocutilsParser()
+    # doc = make_document(parser_cls=DocutilsParser)
+
+    SphinxParser = myst_parser.parsers.sphinx_.MystParser
+    # parser = SphinxParser()
+    # parser.env.myst_config = MdParserConfig(commonmark_only=False)
+    # doc = make_document(parser_cls=SphinxParser)
+    # parser.parse(inputstring=docstring, document=doc)
+    #
+    #
+
+    doc = make_document(parser_cls=MystParser)
+    config: MdParserConfig = MdParserConfig(commonmark_only=False)
+    parser = create_md_parser(config, SphinxRenderer)
+    parser.options["document"] = doc
+    parser.render(docstring)
+
     for node in doc.findall(nodes.literal_block):
         print(str(node))
         cleaned_node = (
